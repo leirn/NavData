@@ -1,6 +1,7 @@
 mod app;
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, web, App, HttpServer};
+use app::db::periodical_update;
 
 use crate::app::db::{create_tables, load_database, AppState};
 use sqlite;
@@ -26,6 +27,8 @@ async fn main() -> std::io::Result<()> {
 
     create_tables(app_state.clone());
     load_database(app_state.clone()).await.unwrap();
+
+    actix_rt::spawn(periodical_update(app_state.clone()));
 
     HttpServer::new(move || {
         let logger = Logger::default();

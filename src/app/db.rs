@@ -3,6 +3,7 @@ use log::info;
 use sqlite::Connection;
 use std::error::Error;
 use std::sync::Mutex;
+use tokio::time::{sleep, Duration};
 
 pub struct AppState {
     pub sqlite_connection: Mutex<Connection>,
@@ -256,5 +257,26 @@ async fn load_navaids(app_state: web::Data<AppState>) -> Result<(), Box<dyn Erro
     })
     .unwrap();
 
+    Ok(())
+}
+
+pub async fn periodical_update(app_state: web::Data<AppState>) -> Result<(), Box<dyn Error>> {
+    loop {
+        let _delay = sleep(Duration::from_secs(10)).await;
+        println!("Awake ! reloading data");
+        let query = "DELETE FROM airports;
+        DELETE FROM airport_frequencies;
+        DELETE FROM airport_runways;
+        DELETE FROM navaids";
+        app_state
+            .sqlite_connection
+            .lock()
+            .unwrap()
+            .execute(query)
+            .unwrap();
+        info!("Database fully cleaned");
+        load_database(app_state.clone()).await;
+        info!("Database relaoded");
+    }
     Ok(())
 }
