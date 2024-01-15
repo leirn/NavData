@@ -262,7 +262,7 @@ async fn load_navaids(app_state: web::Data<AppState>) -> Result<(), Box<dyn Erro
 
 pub async fn periodical_update(app_state: web::Data<AppState>) -> Result<(), Box<dyn Error>> {
     loop {
-        let _delay = sleep(Duration::from_secs(10)).await;
+        let _delay = sleep(Duration::from_secs(86400)).await;
         println!("Awake ! reloading data");
         let query = "DELETE FROM airports;
         DELETE FROM airport_frequencies;
