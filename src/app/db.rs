@@ -275,8 +275,7 @@ pub async fn periodical_update(app_state: web::Data<AppState>) -> Result<(), Box
             .execute(query)
             .unwrap();
         info!("Database fully cleaned");
-        load_database(app_state.clone()).await;
+        load_database(app_state.clone()).await?;
         info!("Database relaoded");
     }
-    Ok(())
 }
