@@ -1,11 +1,13 @@
 use actix_web::web;
-use log::info;
+use log::{debug, info};
+use serde_json::Value;
 use sqlite::Connection;
+use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Mutex;
 use tokio::time::{sleep, Duration};
 
-use crate::app::messages::{CSV_FORMAT_ERROR, ERROR_SQLITE_ACCESS};
+use crate::app::messages::{CSV_FORMAT_ERROR, ERROR_SQLITE_ACCESS, HTTP_USER_AGENT};
 
 pub struct AppState {
     pub sqlite_connection: Mutex<Connection>,
@@ -105,17 +107,15 @@ const BRANCH_API: &str =
     "https://api.github.com/repos/davidmegginson/ourairports-data/branches/main";
 const TREE_API: &str = "https://api.github.com/repos/davidmegginson/ourairports-data/git/trees/";
 
-const AIRPORT_CSV: &str =
-    "https://raw.githubusercontent.com/davidmegginson/ourairports-data/main/airports.csv";
-const AIRPORT_FREQUENCY_CSV: &str =
-        "https://raw.githubusercontent.com/davidmegginson/ourairports-data/main/airport-frequencies.csv";
-const AIRPORT_RUNWAY_CSV: &str =
-    "https://raw.githubusercontent.com/davidmegginson/ourairports-data/main/runways.csv";
-const NAVAID_CSV: &str =
-    "https://raw.githubusercontent.com/davidmegginson/ourairports-data/main/navaids.csv";
+const CSV_ROOT_URL: &str =
+    "https://raw.githubusercontent.com/davidmegginson/ourairports-data/main/";
+const AIRPORT_CSV: &str = "airports.csv";
+const AIRPORT_FREQUENCY_CSV: &str = "airport-frequencies.csv";
+const AIRPORT_RUNWAY_CSV: &str = "runways.csv";
+const NAVAID_CSV: &str = "navaids.csv";
 
 async fn load_airports(app_state: web::Data<AppState>) -> Result<(), Box<dyn Error>> {
-    let result = reqwest::get(AIRPORT_CSV).await?;
+    let result = reqwest::get(format!("{}{}", CSV_ROOT_URL, AIRPORT_CSV)).await?;
     let data = result.text().await?;
     let mut reader = csv::ReaderBuilder::new().from_reader(data.as_bytes());
 
@@ -153,7 +153,7 @@ async fn load_airports(app_state: web::Data<AppState>) -> Result<(), Box<dyn Err
 }
 
 async fn load_airport_frequencies(app_state: web::Data<AppState>) -> Result<(), Box<dyn Error>> {
-    let result = reqwest::get(AIRPORT_FREQUENCY_CSV).await?;
+    let result = reqwest::get(format!("{}{}", CSV_ROOT_URL, AIRPORT_FREQUENCY_CSV)).await?;
     let data = result.text().await?;
     let mut reader = csv::ReaderBuilder::new().from_reader(data.as_bytes());
 
@@ -191,7 +191,7 @@ async fn load_airport_frequencies(app_state: web::Data<AppState>) -> Result<(), 
 }
 
 async fn load_airport_runways(app_state: web::Data<AppState>) -> Result<(), Box<dyn Error>> {
-    let result = reqwest::get(AIRPORT_RUNWAY_CSV).await?;
+    let result = reqwest::get(format!("{}{}", CSV_ROOT_URL, AIRPORT_RUNWAY_CSV)).await?;
     let data = result.text().await?;
     let mut reader = csv::ReaderBuilder::new().from_reader(data.as_bytes());
 
@@ -229,7 +229,7 @@ async fn load_airport_runways(app_state: web::Data<AppState>) -> Result<(), Box<
 }
 
 async fn load_navaids(app_state: web::Data<AppState>) -> Result<(), Box<dyn Error>> {
-    let result = reqwest::get(NAVAID_CSV).await?;
+    let result = reqwest::get(format!("{}{}", CSV_ROOT_URL, NAVAID_CSV)).await?;
     let data = result.text().await?;
     let mut reader = csv::ReaderBuilder::new().from_reader(data.as_bytes());
 
@@ -266,23 +266,124 @@ async fn load_navaids(app_state: web::Data<AppState>) -> Result<(), Box<dyn Erro
     Ok(())
 }
 
+async fn get_list_of_sha() -> Result<HashMap<String, String>, Box<dyn Error>> {
+    debug!("Looking for branch sha first");
+
+    let client = reqwest::Client::builder()
+        .user_agent(HTTP_USER_AGENT)
+        .build()?;
+
+    let result = client.get(BRANCH_API).send().await?;
+
+    let mut shas = HashMap::new();
+
+    let data = result.json::<Value>().await?;
+    let branch_sha = data
+        .get("commit")
+        .unwrap()
+        .get("sha")
+        .unwrap()
+        .as_str()
+        .unwrap();
+
+    debug!("Branch sha is {}", branch_sha);
+
+    let result = client
+        .get(format!("{}{}", TREE_API, branch_sha))
+        .send()
+        .await?;
+    let data = result.json::<Value>().await?;
+    for file in data.get("tree").unwrap().as_array().unwrap() {
+        shas.insert(
+            String::from(file.get("path").unwrap().as_str().unwrap()),
+            String::from(file.get("sha").unwrap().as_str().unwrap()),
+        );
+    }
+
+    Ok(shas)
+}
+
+/// Returns true if sha had been updated to database
+fn check_and_store_sha(
+    app_state: web::Data<AppState>,
+    file: &str,
+    sha: &String,
+) -> Result<bool, Box<dyn Error>> {
+    let con = app_state
+        .sqlite_connection
+        .lock()
+        .expect(ERROR_SQLITE_ACCESS);
+
+    let query = "SELECT count(*) as count FROM data_last_update WHERE file = ? AND sha = ?";
+
+    let mut s = con.prepare(query)?;
+    s.bind((1, file))?;
+    s.bind((2, sha.as_str()))?;
+
+    s.next()?;
+    let count = s.read::<i64, _>("count")?;
+    s.reset()?;
+
+    if count == 0 {
+        // sha in DB is different than the one provided, update database
+        let query = "REPLACE INTO data_last_update (file, sha, date) VALUES (?, ?, unixepoch())";
+        let mut s2 = con.prepare(query)?;
+        s2.bind((1, file))?;
+        s2.bind((2, sha.as_str()))?;
+        s2.next()?;
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
 pub async fn periodical_update(app_state: web::Data<AppState>) -> Result<(), Box<dyn Error>> {
     loop {
-        println!("Awake ! reloading data");
+        info!("Awake ! reloading data");
 
-        load_airports(app_state.clone()).await?;
-        info!("Airports reloaded");
+        let shas = get_list_of_sha().await?;
 
-        load_airport_frequencies(app_state.clone()).await?;
-        info!("Airport frequencies reloaded");
+        match check_and_store_sha(
+            app_state.clone(),
+            AIRPORT_CSV,
+            shas.get(AIRPORT_CSV).unwrap(),
+        )? {
+            true => {
+                load_airports(app_state.clone()).await?;
+            }
+            false => (),
+        }
 
-        load_airport_runways(app_state.clone()).await?;
-        info!("Airport runways reloaded");
+        match check_and_store_sha(
+            app_state.clone(),
+            AIRPORT_FREQUENCY_CSV,
+            shas.get(AIRPORT_FREQUENCY_CSV).unwrap(),
+        )? {
+            true => {
+                load_airport_frequencies(app_state.clone()).await?;
+            }
+            false => (),
+        }
 
-        load_navaids(app_state.clone()).await?;
-        info!("Navaids reloaded");
+        match check_and_store_sha(
+            app_state.clone(),
+            AIRPORT_RUNWAY_CSV,
+            shas.get(AIRPORT_RUNWAY_CSV).unwrap(),
+        )? {
+            true => {
+                load_airport_runways(app_state.clone()).await?;
+            }
+            false => (),
+        }
+
+        match check_and_store_sha(app_state.clone(), NAVAID_CSV, shas.get(NAVAID_CSV).unwrap())? {
+            true => {
+                load_navaids(app_state.clone()).await?;
+            }
+            false => (),
+        }
 
         info!("Database fully reloaded");
-        let _delay = sleep(Duration::from_secs(86400)).await;
+        let _delay = sleep(Duration::from_secs(30)).await;
     }
 }

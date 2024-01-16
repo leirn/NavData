@@ -12,3 +12,6 @@ pub const DEFAULT_HOST: &str = "127.0.0.1";
 pub const PARAM_PORT: &str = "PORT";
 pub const DEFAULT_PORT: &str = "8080";
 pub const PORT_ERROR: &str = "$PORT cannot be converted to uint_16";
+
+// HTTP
+pub const HTTP_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
