@@ -9,7 +9,7 @@ LABEL maintainer="Laurent <laurent@vromman.org>" \
     org.opencontainers.image.vendor="Laurent Vromman" \
     org.opencontainers.image.documentation="https://github.com/leirn/navdata/README.md" \
     org.opencontainers.image.licenses="MIT" \
-    org.opencontainers.image.version="0.1.2" \
+    org.opencontainers.image.version="0.1.3" \
     org.opencontainers.image.url="https://github.com/leirn/navdata/" \
     org.opencontainers.image.source="https://github.com/leirn/navdata/" \
     org.opencontainers.image.revision=$VCS_REF \
@@ -17,7 +17,7 @@ LABEL maintainer="Laurent <laurent@vromman.org>" \
 
 WORKDIR /app
 COPY . /app
-RUN apt-get update && apt-get -y install sqlite3 && apt -y autoremove && apt-get -y clean
+RUN apt-get update && apt-get -y install sqlite3
 RUN cargo build --release
 
 FROM gcr.io/distroless/cc
@@ -36,7 +36,6 @@ ENV DATABASE_PATH=${DATABASE_PATH}
 ARG TOKEN_LIST=""
 ENV TOKEN_LIST=${TOKEN_LIST}
 
-
 ARG RUST_LOG="warn"
 ENV RUST_LOG=${RUST_LOG}
 
@@ -46,4 +45,5 @@ ENV RUST_BACKTRACE=${RUST_BACKTRACE}
 EXPOSE 8080
 
 COPY --from=build-env /app/target/release/nav_data /
+COPY --from=build-env /usr/lib/x86_64-linux-gnu/libsqlite3.so.0.8.6 /usr/lib/x86_64-linux-gnu/libsqlite3.so.0
 CMD ["./nav_data"]
