@@ -17,6 +17,7 @@ LABEL maintainer="Laurent <laurent@vromman.org>" \
 
 WORKDIR /app
 COPY . /app
+RUN apt-get update && apt-get -y install sqlite3 && apt -y autoremove && apt-get -y clean
 RUN cargo build --release
 
 FROM gcr.io/distroless/cc
