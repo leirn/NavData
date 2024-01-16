@@ -3,8 +3,8 @@ FROM rust:1.75.0 AS build-env
 ARG BUILD_DATE
 ARG VCS_REF
 LABEL maintainer="Laurent <laurent@vromman.org>" \
-    org.opencontainers.image.title="NavData Backend" \
-    org.opencontainers.image.description="Endpoint to get information about airports or navaids" \
+    org.opencontainers.image.title="NavData REST API" \
+    org.opencontainers.image.description="REST API to get information about airports or navaids" \
     org.opencontainers.image.authors="Laurent <laurent@vromman.org>" \
     org.opencontainers.image.vendor="Laurent Vromman" \
     org.opencontainers.image.documentation="https://github.com/leirn/navdata/README.md" \
@@ -49,6 +49,5 @@ ENV RUST_BACKTRACE=${RUST_BACKTRACE}
 
 EXPOSE 8080
 
-COPY --from=build-env /app/target/release/api_backend /
-COPY resources/default.jpg /
-CMD ["./navdata"]
+COPY --from=build-env /app/target/release/nav_data /
+CMD ["./nav_data"]
