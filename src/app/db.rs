@@ -5,11 +5,13 @@ use std::error::Error;
 use std::sync::Mutex;
 use tokio::time::{sleep, Duration};
 
+use crate::app::messages::{CSV_FORMAT_ERROR, ERROR_SQLITE_ACCESS};
+
 pub struct AppState {
     pub sqlite_connection: Mutex<Connection>,
 }
 
-pub fn create_tables(app_state: web::Data<AppState>) {
+pub fn create_tables(app_state: web::Data<AppState>) -> Result<(), Box<dyn Error>> {
     info!("Start database creation");
     let query = "
     CREATE TABLE IF NOT EXISTS data_last_update (
@@ -93,10 +95,10 @@ pub fn create_tables(app_state: web::Data<AppState>) {
     app_state
         .sqlite_connection
         .lock()
-        .unwrap()
-        .execute(query)
-        .unwrap();
+        .expect(ERROR_SQLITE_ACCESS)
+        .execute(query)?;
     info!("Database fully created");
+    Ok(())
 }
 
 const BRANCH_API: &str =
@@ -121,13 +123,14 @@ pub async fn load_database(app_state: web::Data<AppState>) -> Result<(), Box<dyn
 }
 
 async fn load_airports(app_state: web::Data<AppState>) -> Result<(), Box<dyn Error>> {
-    let result = reqwest::get(AIRPORT_CSV).await;
-    let result = result.unwrap();
-    let data = result.text().await;
-    let data = data.unwrap();
+    let result = reqwest::get(AIRPORT_CSV).await?;
+    let data = result.text().await?;
     let mut reader = csv::ReaderBuilder::new().from_reader(data.as_bytes());
 
-    let con = app_state.sqlite_connection.lock().unwrap();
+    let con = app_state
+        .sqlite_connection
+        .lock()
+        .expect(ERROR_SQLITE_ACCESS);
 
     for result in reader.records() {
         let record = result?;
@@ -137,7 +140,7 @@ async fn load_airports(app_state: web::Data<AppState>) -> Result<(), Box<dyn Err
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         let mut statement = con.prepare(query)?;
         for i in 0..18 {
-            statement.bind((i + 1, record.get(i).unwrap()))?;
+            statement.bind((i + 1, record.get(i).expect(CSV_FORMAT_ERROR)))?;
         }
 
         statement.next()?;
@@ -149,20 +152,20 @@ async fn load_airports(app_state: web::Data<AppState>) -> Result<(), Box<dyn Err
             info!("{} airports loaded", value.unwrap());
         }
         true
-    })
-    .unwrap();
+    })?;
 
     Ok(())
 }
 
 async fn load_airport_frequencies(app_state: web::Data<AppState>) -> Result<(), Box<dyn Error>> {
-    let result = reqwest::get(AIRPORT_FREQUENCY_CSV).await;
-    let result = result.unwrap();
-    let data = result.text().await;
-    let data = data.unwrap();
+    let result = reqwest::get(AIRPORT_FREQUENCY_CSV).await?;
+    let data = result.text().await?;
     let mut reader = csv::ReaderBuilder::new().from_reader(data.as_bytes());
 
-    let con = app_state.sqlite_connection.lock().unwrap();
+    let con = app_state
+        .sqlite_connection
+        .lock()
+        .expect(ERROR_SQLITE_ACCESS);
 
     for result in reader.records() {
         let record = result?;
@@ -172,7 +175,7 @@ async fn load_airport_frequencies(app_state: web::Data<AppState>) -> Result<(), 
             VALUES (?, ?, ?, ?, ?, ?)";
         let mut statement = con.prepare(query)?;
         for i in 0..6 {
-            statement.bind((i + 1, record.get(i).unwrap()))?;
+            statement.bind((i + 1, record.get(i).expect(CSV_FORMAT_ERROR)))?;
         }
 
         statement.next()?;
@@ -184,20 +187,20 @@ async fn load_airport_frequencies(app_state: web::Data<AppState>) -> Result<(), 
             info!("{} airport frequencies loaded", value.unwrap());
         }
         true
-    })
-    .unwrap();
+    })?;
 
     Ok(())
 }
 
 async fn load_airport_runways(app_state: web::Data<AppState>) -> Result<(), Box<dyn Error>> {
-    let result = reqwest::get(AIRPORT_RUNWAY_CSV).await;
-    let result = result.unwrap();
-    let data = result.text().await;
-    let data = data.unwrap();
+    let result = reqwest::get(AIRPORT_RUNWAY_CSV).await?;
+    let data = result.text().await?;
     let mut reader = csv::ReaderBuilder::new().from_reader(data.as_bytes());
 
-    let con = app_state.sqlite_connection.lock().unwrap();
+    let con = app_state
+        .sqlite_connection
+        .lock()
+        .expect(ERROR_SQLITE_ACCESS);
 
     for result in reader.records() {
         let record = result?;
@@ -207,7 +210,7 @@ async fn load_airport_runways(app_state: web::Data<AppState>) -> Result<(), Box<
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         let mut statement = con.prepare(query)?;
         for i in 0..20 {
-            statement.bind((i + 1, record.get(i).unwrap()))?;
+            statement.bind((i + 1, record.get(i).expect(CSV_FORMAT_ERROR)))?;
         }
 
         statement.next()?;
@@ -219,20 +222,20 @@ async fn load_airport_runways(app_state: web::Data<AppState>) -> Result<(), Box<
             info!("{} airport runways loaded", value.unwrap());
         }
         true
-    })
-    .unwrap();
+    })?;
 
     Ok(())
 }
 
 async fn load_navaids(app_state: web::Data<AppState>) -> Result<(), Box<dyn Error>> {
-    let result = reqwest::get(NAVAID_CSV).await;
-    let result = result.unwrap();
-    let data = result.text().await;
-    let data = data.unwrap();
+    let result = reqwest::get(NAVAID_CSV).await?;
+    let data = result.text().await?;
     let mut reader = csv::ReaderBuilder::new().from_reader(data.as_bytes());
 
-    let con = app_state.sqlite_connection.lock().unwrap();
+    let con = app_state
+        .sqlite_connection
+        .lock()
+        .expect(ERROR_SQLITE_ACCESS);
 
     for result in reader.records() {
         let record = result?;
@@ -242,7 +245,7 @@ async fn load_navaids(app_state: web::Data<AppState>) -> Result<(), Box<dyn Erro
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         let mut statement = con.prepare(query)?;
         for i in 0..20 {
-            statement.bind((i + 1, record.get(i).unwrap()))?;
+            statement.bind((i + 1, record.get(i).expect(CSV_FORMAT_ERROR)))?;
         }
 
         statement.next()?;
@@ -254,8 +257,7 @@ async fn load_navaids(app_state: web::Data<AppState>) -> Result<(), Box<dyn Erro
             info!("{} airport runways loaded", value.unwrap());
         }
         true
-    })
-    .unwrap();
+    })?;
 
     Ok(())
 }
@@ -271,9 +273,8 @@ pub async fn periodical_update(app_state: web::Data<AppState>) -> Result<(), Box
         app_state
             .sqlite_connection
             .lock()
-            .unwrap()
-            .execute(query)
-            .unwrap();
+            .expect(ERROR_SQLITE_ACCESS)
+            .execute(query)?;
         info!("Database fully cleaned");
         load_database(app_state.clone()).await?;
         info!("Database relaoded");
