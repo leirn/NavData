@@ -8,7 +8,7 @@ This project offers a REST API to get information on:
 It currently relies on <https://www.github.com/davidmegginson/ourairports-data> .
 Data is refreshed every 24h.
 
-## WARNING : NO AIRAC COMPLIENCY
+## WARNING : NO AIRAC COMPLIANCY
 
 There is no garantee that the provided data is in any way conform to the latest AIRAC cycle.
 
