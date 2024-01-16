@@ -384,6 +384,6 @@ pub async fn periodical_update(app_state: web::Data<AppState>) -> Result<(), Box
         }
 
         info!("Database fully reloaded");
-        let _delay = sleep(Duration::from_secs(30)).await;
+        let _delay = sleep(Duration::from_secs(86400)).await;
     }
 }
