@@ -80,6 +80,8 @@ async fn get_navaid_by_icao_code(
 ) -> Result<Value, Box<dyn Error>> {
     let query = "SELECT * FROM navaids WHERE icao_code=?";
 
+    let icao = icao.to_uppercase();
+
     let mut data = json!([]);
 
     let con = app_state

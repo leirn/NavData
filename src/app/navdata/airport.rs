@@ -1,14 +1,78 @@
 use crate::app::{db::AppState, messages::ERROR_SQLITE_ACCESS};
 use actix_web::{get, web, HttpResponse, Responder};
 use log::{error, info};
+use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlite::State;
 use std::error::Error;
 
 pub fn register_routes(cfg: &mut web::ServiceConfig) {
+    cfg.service(airport_by_icao_code);
     cfg.service(airport);
 
     info!("airports routes loaded");
+}
+
+#[derive(Deserialize)]
+struct FormData {
+    page: Option<u32>,
+    search: Option<String>,
+}
+
+async fn search_airport(
+    search: Option<String>,
+    _page: Option<u32>,
+    app_state: web::Data<AppState>,
+) -> Result<Value, Box<dyn Error>> {
+    let codes = {
+        let con = app_state
+            .sqlite_connection
+            .lock()
+            .expect(ERROR_SQLITE_ACCESS);
+
+        let mut statement = match search {
+            Some(search) => {
+                let query = "SELECT icao_code FROM airports WHERE icao_code LIKE '%' || ? || '%' OR name LIKE '%' || ? || '%' OR municipality LIKE '%' || ? || '%' OR iata_code LIKE '%' || ? || '%' LIMIT 100";
+                let mut s = con.prepare(query)?;
+                s.bind((1, search.as_str()))?;
+                s.bind((2, search.as_str()))?;
+                s.bind((3, search.as_str()))?;
+                s
+            }
+            None => {
+                let query = "SELECT * FROM airports LIMIT 100";
+                con.prepare(query)?
+            }
+        };
+
+        let mut codes = vec![];
+        while let Ok(State::Row) = statement.next() {
+            let icao_code = statement.read::<String, _>("icao_code")?;
+            codes.push(icao_code);
+        }
+        codes
+    };
+
+    let mut data = json!([]);
+    for code in codes {
+        let airport_data = get_airport_by_icao_code(code, app_state.clone()).await?;
+        data.as_array_mut().unwrap().push(airport_data);
+    }
+
+    Ok(data)
+}
+
+#[get("/airport")]
+async fn airport(param: web::Query<FormData>, app_state: web::Data<AppState>) -> impl Responder {
+    info!("Request received : /airport");
+    let data = search_airport(param.search.clone(), param.page, app_state).await;
+    match data {
+        Ok(data) => HttpResponse::Ok().json(json!({"status": "success", "navaid" : data})),
+        Err(err) => {
+            error!("Error while answering request /airport: {}", err);
+            HttpResponse::Ok().json(json!({"status": "error"}))
+        }
+    }
 }
 
 async fn get_airport_by_icao_code(
@@ -16,6 +80,8 @@ async fn get_airport_by_icao_code(
     app_state: web::Data<AppState>,
 ) -> Result<Value, Box<dyn Error>> {
     let query = "SELECT * FROM airports WHERE icao_code=?";
+
+    let icao = icao.to_uppercase();
 
     let mut data = json!({});
 
@@ -81,7 +147,10 @@ async fn get_airport_by_icao_code(
 }
 
 #[get("/airport/{icao}")]
-async fn airport(icao: web::Path<String>, app_state: web::Data<AppState>) -> impl Responder {
+async fn airport_by_icao_code(
+    icao: web::Path<String>,
+    app_state: web::Data<AppState>,
+) -> impl Responder {
     info!("Request received : /airport/{}", icao);
     let data = get_airport_by_icao_code(icao.to_string(), app_state).await;
     match data {
