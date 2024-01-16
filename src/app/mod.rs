@@ -1,4 +1,5 @@
 pub mod db;
+pub mod messages;
 pub mod navdata;
 
 use log::info;
