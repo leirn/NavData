@@ -9,7 +9,7 @@ LABEL maintainer="Laurent <laurent@vromman.org>" \
     org.opencontainers.image.vendor="Laurent Vromman" \
     org.opencontainers.image.documentation="https://github.com/leirn/navdata/README.md" \
     org.opencontainers.image.licenses="MIT" \
-    org.opencontainers.image.version="0.1.0" \
+    org.opencontainers.image.version="0.1.2" \
     org.opencontainers.image.url="https://github.com/leirn/navdata/" \
     org.opencontainers.image.source="https://github.com/leirn/navdata/" \
     org.opencontainers.image.revision=$VCS_REF \
@@ -26,9 +26,6 @@ ENV DATABASE_FOLDER=/data
 
 VOLUME "/data"
 
-ARG DEFAULT_IMAGE="/default.jpg"
-ENV DEFAULT_IMAGE=${DEFAULT_IMAGE}
-
 ENV HOST=0.0.0.0
 
 ENV PORT=8080
@@ -39,8 +36,6 @@ ENV DATABASE_PATH=${DATABASE_PATH}
 ARG TOKEN_LIST=""
 ENV TOKEN_LIST=${TOKEN_LIST}
 
-ARG HTTPS="true"
-ENV HTTPS=${HTTPS}
 
 ARG RUST_LOG="warn"
 ENV RUST_LOG=${RUST_LOG}
