@@ -4,7 +4,7 @@ use actix_web::{middleware::Logger, web, App, HttpServer};
 use app::db::periodical_update;
 use app::messages::*;
 
-use crate::app::db::{create_tables, load_database, AppState};
+use crate::app::db::{create_tables, AppState};
 use sqlite;
 use std::env;
 use std::sync::Mutex;
@@ -13,11 +13,11 @@ use std::sync::Mutex;
 async fn main() -> std::io::Result<()> {
     env_logger::init();
 
-    let host = env::var(PARAM_HOST).expect(HOST_NOT_SET);
+    let host = env::var(PARAM_HOST).unwrap_or(String::from(DEFAULT_HOST));
     let database_path = env::var(PARAM_DATABASE_PATH).unwrap_or(String::from(DEFAULT_DATABASE));
 
     let port = env::var(PARAM_PORT)
-        .expect(PORT_NOT_SET)
+        .unwrap_or(String::from(DEFAULT_PORT))
         .parse()
         .expect(PORT_ERROR);
 
@@ -28,7 +28,6 @@ async fn main() -> std::io::Result<()> {
     });
 
     create_tables(app_state.clone()).unwrap();
-    load_database(app_state.clone()).await.unwrap();
 
     actix_rt::spawn(periodical_update(app_state.clone()));
 

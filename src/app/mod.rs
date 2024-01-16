@@ -1,6 +1,7 @@
 pub mod db;
 pub mod messages;
 pub mod navdata;
+pub mod security;
 
 use log::info;
 

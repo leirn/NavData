@@ -114,14 +114,6 @@ const AIRPORT_RUNWAY_CSV: &str =
 const NAVAID_CSV: &str =
     "https://raw.githubusercontent.com/davidmegginson/ourairports-data/main/navaids.csv";
 
-pub async fn load_database(app_state: web::Data<AppState>) -> Result<(), Box<dyn Error>> {
-    load_airports(app_state.clone()).await?;
-    load_airport_frequencies(app_state.clone()).await?;
-    load_airport_runways(app_state.clone()).await?;
-    load_navaids(app_state.clone()).await?;
-    Ok(())
-}
-
 async fn load_airports(app_state: web::Data<AppState>) -> Result<(), Box<dyn Error>> {
     let result = reqwest::get(AIRPORT_CSV).await?;
     let data = result.text().await?;
@@ -131,6 +123,9 @@ async fn load_airports(app_state: web::Data<AppState>) -> Result<(), Box<dyn Err
         .sqlite_connection
         .lock()
         .expect(ERROR_SQLITE_ACCESS);
+
+    let query = "DELETE FROM airports";
+    con.execute(query)?;
 
     for result in reader.records() {
         let record = result?;
@@ -167,6 +162,9 @@ async fn load_airport_frequencies(app_state: web::Data<AppState>) -> Result<(), 
         .lock()
         .expect(ERROR_SQLITE_ACCESS);
 
+    let query = "DELETE FROM airport_frequencies";
+    con.execute(query)?;
+
     for result in reader.records() {
         let record = result?;
 
@@ -201,6 +199,9 @@ async fn load_airport_runways(app_state: web::Data<AppState>) -> Result<(), Box<
         .sqlite_connection
         .lock()
         .expect(ERROR_SQLITE_ACCESS);
+
+    let query = "DELETE FROM airport_runways";
+    con.execute(query)?;
 
     for result in reader.records() {
         let record = result?;
@@ -237,6 +238,9 @@ async fn load_navaids(app_state: web::Data<AppState>) -> Result<(), Box<dyn Erro
         .lock()
         .expect(ERROR_SQLITE_ACCESS);
 
+    let query = "DELETE FROM navaids";
+    con.execute(query)?;
+
     for result in reader.records() {
         let record = result?;
 
@@ -264,19 +268,21 @@ async fn load_navaids(app_state: web::Data<AppState>) -> Result<(), Box<dyn Erro
 
 pub async fn periodical_update(app_state: web::Data<AppState>) -> Result<(), Box<dyn Error>> {
     loop {
-        let _delay = sleep(Duration::from_secs(86400)).await;
         println!("Awake ! reloading data");
-        let query = "DELETE FROM airports;
-        DELETE FROM airport_frequencies;
-        DELETE FROM airport_runways;
-        DELETE FROM navaids";
-        app_state
-            .sqlite_connection
-            .lock()
-            .expect(ERROR_SQLITE_ACCESS)
-            .execute(query)?;
-        info!("Database fully cleaned");
-        load_database(app_state.clone()).await?;
-        info!("Database relaoded");
+
+        load_airports(app_state.clone()).await?;
+        info!("Airports reloaded");
+
+        load_airport_frequencies(app_state.clone()).await?;
+        info!("Airport frequencies reloaded");
+
+        load_airport_runways(app_state.clone()).await?;
+        info!("Airport runways reloaded");
+
+        load_navaids(app_state.clone()).await?;
+        info!("Navaids reloaded");
+
+        info!("Database fully reloaded");
+        let _delay = sleep(Duration::from_secs(86400)).await;
     }
 }

@@ -921,6 +921,7 @@ dependencies = [
  "actix-rt",
  "actix-web",
  "csv",
+ "derive_more",
  "env_logger",
  "log",
  "reqwest",
