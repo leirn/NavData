@@ -19,6 +19,7 @@ struct FormData {
     page: Option<u32>,
     search: Option<String>,
     country: Option<String>,
+    navaid_type: Option<String>,
 }
 
 #[get("/navaid")]
@@ -28,6 +29,7 @@ async fn navaid(param: web::Query<FormData>, app_state: web::Data<AppState>) -> 
         param.search.clone(),
         param.page,
         param.country.clone(),
+        param.navaid_type.clone(),
         app_state,
     )
     .await;

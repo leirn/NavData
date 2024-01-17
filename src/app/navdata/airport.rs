@@ -19,6 +19,7 @@ struct FormData {
     page: Option<u32>,
     search: Option<String>,
     country: Option<String>,
+    airport_type: Option<String>,
 }
 
 #[get("/airport")]
@@ -28,6 +29,7 @@ async fn airport(param: web::Query<FormData>, app_state: web::Data<AppState>) ->
         param.search.clone(),
         param.page,
         param.country.clone(),
+        param.airport_type.clone(),
         app_state,
     )
     .await;

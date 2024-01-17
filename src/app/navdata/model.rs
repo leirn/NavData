@@ -161,6 +161,7 @@ pub async fn search_navaid(
     search: Option<String>,
     _page: Option<u32>,
     country: Option<String>,
+    navaid_type: Option<String>,
     app_state: web::Data<AppState>,
 ) -> Result<Value, Box<dyn Error>> {
     let con = app_state
@@ -175,9 +176,19 @@ pub async fn search_navaid(
         query.push_str(" WHERE iso_country = ?");
         is_first = false;
     }
+    if navaid_type.is_some() {
+        if is_first {
+            query.push_str(" WHERE");
+            is_first = false;
+        } else {
+            query.push_str(" AND");
+        }
+        query.push_str(" type = ?");
+    }
     if search.is_some() {
         if is_first {
             query.push_str(" WHERE");
+            //is_first = false;
         } else {
             query.push_str(" AND");
         }
@@ -191,6 +202,11 @@ pub async fn search_navaid(
     if country.is_some() {
         let country_param = country.unwrap().to_uppercase();
         statement.bind((index, country_param.as_str()))?;
+        index += 1;
+    }
+    if navaid_type.is_some() {
+        let navaid_type_param = navaid_type.unwrap().to_uppercase();
+        statement.bind((index, navaid_type_param.as_str()))?;
         index += 1;
     }
     if search.is_some() {
@@ -222,6 +238,7 @@ pub async fn search_airport(
     search: Option<String>,
     _page: Option<u32>,
     country: Option<String>,
+    airport_type: Option<String>,
     app_state: web::Data<AppState>,
 ) -> Result<Value, Box<dyn Error>> {
     let codes = {
@@ -237,9 +254,19 @@ pub async fn search_airport(
             query.push_str(" WHERE iso_country = ?");
             is_first = false;
         }
+        if airport_type.is_some() {
+            if is_first {
+                query.push_str(" WHERE");
+                is_first = false;
+            } else {
+                query.push_str(" AND");
+            }
+            query.push_str(" type = ?");
+        }
         if search.is_some() {
             if is_first {
                 query.push_str(" WHERE");
+                //is_first = false;
             } else {
                 query.push_str(" AND");
             }
@@ -253,6 +280,11 @@ pub async fn search_airport(
         if country.is_some() {
             let country_param = country.unwrap().to_uppercase();
             statement.bind((index, country_param.as_str()))?;
+            index += 1;
+        }
+        if airport_type.is_some() {
+            let airport_type_param = airport_type.unwrap().to_lowercase();
+            statement.bind((index, airport_type_param.as_str()))?;
             index += 1;
         }
         if search.is_some() {
