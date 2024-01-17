@@ -18,12 +18,19 @@ pub fn register_routes(cfg: &mut web::ServiceConfig) {
 struct FormData {
     page: Option<u32>,
     search: Option<String>,
+    country: Option<String>,
 }
 
 #[get("/navaid")]
 async fn navaid(param: web::Query<FormData>, app_state: web::Data<AppState>) -> impl Responder {
     info!("Request received : /navaid");
-    let data = search_navaid(param.search.clone(), param.page, app_state).await;
+    let data = search_navaid(
+        param.search.clone(),
+        param.page,
+        param.country.clone(),
+        app_state,
+    )
+    .await;
     match data {
         Ok(data) => HttpResponse::Ok().json(json!({"status": "success", "navaid" : data})),
         Err(err) => {
