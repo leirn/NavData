@@ -141,7 +141,7 @@ async fn load_airports(app_state: web::Data<AppState>) -> Result<(), Box<dyn Err
         let record = result?;
 
         let query = "INSERT INTO airports
-            (id, icao_code, type, name, latitude_deg, longitude_deg, elevation_ft, continent, iso_region, iso_country, municipality, scheduled_service, gps_code, iata_code, local_code, home_link, wikipedia_link, keywords)
+            (id, icao_code, type, name, latitude_deg, longitude_deg, elevation_ft, continent, iso_country, iso_region, municipality, scheduled_service, gps_code, iata_code, local_code, home_link, wikipedia_link, keywords)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         let mut statement = con.prepare(query)?;
         for i in 0..18 {
