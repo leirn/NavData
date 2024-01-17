@@ -41,6 +41,11 @@ pub fn create_tables(app_state: web::Data<AppState>) -> Result<(), Box<dyn Error
         wikipedia_link TEXT,
         keywords TEXT
     );
+    CREATE INDEX idx_airports_name ON airports (name);
+    CREATE INDEX idx_airports_municipality ON airports (municipality);
+    CREATE INDEX idx_airports_iata_code ON airports (iata_code);
+    CREATE INDEX idx_airports_iso_country ON airports (iso_country);
+    CREATE INDEX idx_airports_type ON airports (type);
     CREATE TABLE IF NOT EXISTS airport_frequencies (
         id INTEGER UNIQUE PRIMARY KEY NOT NULL,
         airport_ref INTEGER,
@@ -93,6 +98,11 @@ pub fn create_tables(app_state: web::Data<AppState>) -> Result<(), Box<dyn Error
         power TEXT,
         associated_airport TEXT
     );
+    CREATE INDEX idx_navaids_name ON navaids (name);
+    CREATE INDEX idx_navaids_filename ON navaids (filename);
+    CREATE INDEX idx_navaids_associated_airport ON navaids (associated_airport);
+    CREATE INDEX idx_navaids_type ON navaids (type);
+    CREATE INDEX idx_navaids_iso_country ON navaids (iso_country);
     ";
     app_state
         .sqlite_connection
