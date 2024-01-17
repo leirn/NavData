@@ -3,6 +3,7 @@ use actix_cors::Cors;
 use actix_web::{middleware::Logger, web, App, HttpServer};
 use app::db::periodical_update;
 use app::messages::*;
+use app::security::simple_token::SimpleToken;
 
 use crate::app::db::{create_tables, AppState};
 use sqlite;
@@ -36,6 +37,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(logger)
             .wrap(Cors::permissive().supports_credentials())
+            .wrap(SimpleToken)
             .app_data(app_state.clone())
             .configure(app::register_routes)
     })
