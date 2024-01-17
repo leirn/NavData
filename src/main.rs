@@ -1,11 +1,11 @@
 mod app;
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, web, App, HttpServer};
-use app::db::periodical_update;
+use app::db::sqlite::SqliteBackend;
 use app::messages::*;
 use app::security::simple_token::SimpleToken;
 
-use crate::app::db::{create_tables, AppState};
+use app::db::{periodical_update, AppState};
 use sqlite;
 use std::env;
 use std::sync::Mutex;
@@ -15,20 +15,20 @@ async fn main() -> std::io::Result<()> {
     env_logger::init();
 
     let host = env::var(PARAM_HOST).unwrap_or(String::from(DEFAULT_HOST));
-    let database_path = env::var(PARAM_DATABASE_PATH).unwrap_or(String::from(DEFAULT_DATABASE));
 
     let port = env::var(PARAM_PORT)
         .unwrap_or(String::from(DEFAULT_PORT))
         .parse()
         .expect(PORT_ERROR);
 
+    let database_path = env::var(PARAM_DATABASE_PATH).unwrap_or(String::from(DEFAULT_DATABASE));
     let connection = sqlite::open(database_path).expect(ERROR_SQLITE_ACCESS);
+    let backend = SqliteBackend::new();
 
     let app_state = web::Data::new(AppState {
         sqlite_connection: Mutex::new(connection),
+        database: Box::new(backend),
     });
-
-    create_tables(app_state.clone()).unwrap();
 
     actix_rt::spawn(periodical_update(app_state.clone()));
 
