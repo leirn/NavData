@@ -11,7 +11,6 @@ pub async fn get_airport_by_icao_code(
     app_state: web::Data<AppState>,
 ) -> Result<Value, Box<dyn Error>> {
     let query = "SELECT * FROM airports WHERE icao_code=?";
-
     let icao = icao.to_uppercase();
 
     let mut data = json!({});
@@ -146,7 +145,7 @@ pub async fn get_navaid_by_id(
         .expect(ERROR_SQLITE_ACCESS);
     let mut statement = con.prepare(query)?;
     statement.bind((1, id))?;
-
+    statement.next()?;
     let mut navaid_data = json!({});
 
     for column_name in statement.column_names() {
@@ -161,6 +160,8 @@ pub async fn get_navaid_by_id(
 pub async fn search_navaid(
     search: Option<String>,
     _page: Option<u32>,
+    country: Option<String>,
+    navaid_type: Option<String>,
     app_state: web::Data<AppState>,
 ) -> Result<Value, Box<dyn Error>> {
     let con = app_state
@@ -168,23 +169,57 @@ pub async fn search_navaid(
         .lock()
         .expect(ERROR_SQLITE_ACCESS);
 
-    let mut statement = match search {
-        Some(search) => {
-            let query = "SELECT * FROM navaids WHERE icao_code LIKE '%' || ? || '%' OR name LIKE '%' || ? || '%' OR associated_airport LIKE '%' || ? || '%' LIMIT 100";
-            let mut s = con.prepare(query)?;
-            s.bind((1, search.as_str()))?;
-            s.bind((2, search.as_str()))?;
-            s.bind((3, search.as_str()))?;
-            s
+    // First build the query
+    let mut query = "SELECT * FROM navaids".to_owned();
+    let mut is_first = true;
+    if country.is_some() {
+        query.push_str(" WHERE iso_country = ?");
+        is_first = false;
+    }
+    if navaid_type.is_some() {
+        if is_first {
+            query.push_str(" WHERE");
+            is_first = false;
+        } else {
+            query.push_str(" AND");
         }
-        None => {
-            let query = "SELECT * FROM navaids LIMIT 100";
-            con.prepare(query)?
+        query.push_str(" type = ?");
+    }
+    if search.is_some() {
+        if is_first {
+            query.push_str(" WHERE");
+            //is_first = false;
+        } else {
+            query.push_str(" AND");
         }
-    };
+        query.push_str(" (icao_code LIKE '%' || ? || '%' OR name LIKE '%' || ? || '%' OR associated_airport LIKE '%' || ? || '%')");
+    }
+    query.push_str(" LIMIT 100");
 
+    // Build and fill the statement
+    let mut statement = con.prepare(query)?;
+    let mut index = 1;
+    if country.is_some() {
+        let country_param = country.unwrap().to_uppercase();
+        statement.bind((index, country_param.as_str()))?;
+        index += 1;
+    }
+    if navaid_type.is_some() {
+        let navaid_type_param = navaid_type.unwrap().to_uppercase();
+        statement.bind((index, navaid_type_param.as_str()))?;
+        index += 1;
+    }
+    if search.is_some() {
+        let search = search.unwrap();
+        let search_str = search.as_str();
+        statement.bind((index, search_str))?;
+        statement.bind((index + 1, search_str))?;
+        statement.bind((index + 2, search_str))?;
+        //index += 3;
+    }
+
+    // Execute statement and get the results
     let mut data = json!([]);
-
     while let Ok(State::Row) = statement.next() {
         let mut navaid_data = json!({});
 
@@ -202,6 +237,8 @@ pub async fn search_navaid(
 pub async fn search_airport(
     search: Option<String>,
     _page: Option<u32>,
+    country: Option<String>,
+    airport_type: Option<String>,
     app_state: web::Data<AppState>,
 ) -> Result<Value, Box<dyn Error>> {
     let codes = {
@@ -210,21 +247,56 @@ pub async fn search_airport(
             .lock()
             .expect(ERROR_SQLITE_ACCESS);
 
-        let mut statement = match search {
-            Some(search) => {
-                let query = "SELECT icao_code FROM airports WHERE icao_code LIKE '%' || ? || '%' OR name LIKE '%' || ? || '%' OR municipality LIKE '%' || ? || '%' OR iata_code LIKE '%' || ? || '%' LIMIT 100";
-                let mut s = con.prepare(query)?;
-                s.bind((1, search.as_str()))?;
-                s.bind((2, search.as_str()))?;
-                s.bind((3, search.as_str()))?;
-                s
+        // First build the query
+        let mut query = "SELECT icao_code FROM airports".to_owned();
+        let mut is_first = true;
+        if country.is_some() {
+            query.push_str(" WHERE iso_country = ?");
+            is_first = false;
+        }
+        if airport_type.is_some() {
+            if is_first {
+                query.push_str(" WHERE");
+                is_first = false;
+            } else {
+                query.push_str(" AND");
             }
-            None => {
-                let query = "SELECT * FROM airports LIMIT 100";
-                con.prepare(query)?
+            query.push_str(" type = ?");
+        }
+        if search.is_some() {
+            if is_first {
+                query.push_str(" WHERE");
+                //is_first = false;
+            } else {
+                query.push_str(" AND");
             }
-        };
+            query.push_str(" (icao_code LIKE '%' || ? || '%' OR name LIKE '%' || ? || '%' OR municipality LIKE '%' || ? || '%' OR iata_code LIKE '%' || ? || '%')");
+        }
+        query.push_str(" LIMIT 100");
 
+        // Build and fill the statement
+        let mut statement = con.prepare(query)?;
+        let mut index = 1;
+        if country.is_some() {
+            let country_param = country.unwrap().to_uppercase();
+            statement.bind((index, country_param.as_str()))?;
+            index += 1;
+        }
+        if airport_type.is_some() {
+            let airport_type_param = airport_type.unwrap().to_lowercase();
+            statement.bind((index, airport_type_param.as_str()))?;
+            index += 1;
+        }
+        if search.is_some() {
+            let search = search.unwrap();
+            let search_str = search.as_str();
+            statement.bind((index, search_str))?;
+            statement.bind((index + 1, search_str))?;
+            statement.bind((index + 2, search_str))?;
+            //index += 3;
+        }
+
+        // Execute statement and get the results
         let mut codes = vec![];
         while let Ok(State::Row) = statement.next() {
             let icao_code = statement.read::<String, _>("icao_code")?;
