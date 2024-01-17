@@ -159,7 +159,7 @@ pub async fn get_navaid_by_id(
 
 pub async fn search_navaid(
     search: Option<String>,
-    _page: Option<u32>,
+    page: Option<u32>,
     country: Option<String>,
     navaid_type: Option<String>,
     app_state: web::Data<AppState>,
@@ -194,7 +194,10 @@ pub async fn search_navaid(
         }
         query.push_str(" (icao_code LIKE '%' || ? || '%' OR name LIKE '%' || ? || '%' OR associated_airport LIKE '%' || ? || '%')");
     }
-    query.push_str(" LIMIT 100");
+    match page {
+        Some(page) => query.push_str(format!(" LIMIT {}, 100", page * 100).as_str()),
+        None => query.push_str(" LIMIT 100"),
+    };
 
     // Build and fill the statement
     let mut statement = con.prepare(query)?;
@@ -236,7 +239,7 @@ pub async fn search_navaid(
 
 pub async fn search_airport(
     search: Option<String>,
-    _page: Option<u32>,
+    page: Option<u32>,
     country: Option<String>,
     airport_type: Option<String>,
     app_state: web::Data<AppState>,
@@ -272,7 +275,10 @@ pub async fn search_airport(
             }
             query.push_str(" (icao_code LIKE '%' || ? || '%' OR name LIKE '%' || ? || '%' OR municipality LIKE '%' || ? || '%' OR iata_code LIKE '%' || ? || '%')");
         }
-        query.push_str(" LIMIT 100");
+        match page {
+            Some(page) => query.push_str(format!(" LIMIT {}, 100", page * 100).as_str()),
+            None => query.push_str(" LIMIT 100"),
+        };
 
         // Build and fill the statement
         let mut statement = con.prepare(query)?;
