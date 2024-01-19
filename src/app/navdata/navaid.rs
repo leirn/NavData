@@ -48,7 +48,7 @@ async fn navaid_by_icao_code(
     info!("Request received : /navaid/{}", icao);
     let data = app_state
         .database
-        .get_navaid_by_icao_code(icao.to_string())
+        .get_navaids_by_icao_code(icao.to_string())
         .await;
     match data {
         Ok(data) => HttpResponse::Ok().json(json!({"status": "success", "navaid" : data})),

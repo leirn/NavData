@@ -1,24 +1,25 @@
-use crate::app::db::DatabaseBackend;
-use crate::app::messages::*;
 use crate::app::messages::{CSV_FORMAT_ERROR, ERROR_SQLITE_ACCESS, HTTP_USER_AGENT};
 use ::sqlite::Connection;
-use async_trait::async_trait;
 use log::{debug, info};
-use serde_json::{json, Value};
+use serde_json::Value;
 use sqlite::State;
-use std::env;
 use std::error::Error;
+use std::str::FromStr;
 use std::sync::Mutex;
 use std::{collections::HashMap, sync::Arc};
 use tokio::time::{sleep, Duration};
+
+use super::{
+    Airport, AirportType, Frequency, FrequencyType, LocationPoint, LocationType, Navaid,
+    NavaidType, Runway,
+};
 
 pub struct SqliteBackend {
     connection: Arc<Mutex<Connection>>,
 }
 
 impl SqliteBackend {
-    pub fn new() -> SqliteBackend {
-        let path = env::var(PARAM_DATABASE_PATH).unwrap_or(String::from(DEFAULT_DATABASE));
+    pub fn new(path: String) -> SqliteBackend {
         // Init DB first
         let connection = sqlite::open(path.clone()).expect(ERROR_SQLITE_ACCESS);
 
@@ -67,29 +68,29 @@ impl SqliteBackend {
             airport_icao_code TEXT,
             type TEXT,
             description TEXT,
-            frequency_mhz TEXT
+            frequency_mhz DECIMAL
         );
         CREATE TABLE IF NOT EXISTS airport_runways (
             id INTEGER UNIQUE PRIMARY KEY NOT NULL,
             airport_ref INTEGER,
             airport_icao_code TEXT,
-            length_ft INTERGER,
-            width_ft INTERGER,
-            surface INTERGER,
-            lighted INTERGER,
-            closed INTERGER,
-            le_ident INTERGER,
+            length_ft INTEGER,
+            width_ft INTEGER,
+            surface INTEGER,
+            lighted INTEGER,
+            closed INTEGER,
+            le_ident INTEGER,
             le_latitude_deg DECIMAL,
             le_longitude_deg DECIMAL,
-            le_elevation_ft INTERGER,
-            le_heading_degT INTERGER,
-            le_displaced_threshold_ft INTERGER,
-            he_ident INTERGER,
+            le_elevation_ft INTEGER,
+            le_heading_degT INTEGER,
+            le_displaced_threshold_ft INTEGER,
+            he_ident INTEGER,
             he_latitude_deg DECIMAL,
             he_longitude_deg DECIMAL,
-            he_elevation_ft INTERGER,
-            he_heading_degT INTERGER,
-            he_displaced_threshold_ft INTERGER
+            he_elevation_ft INTEGER,
+            he_heading_degT INTEGER,
+            he_displaced_threshold_ft INTEGER
         );
         CREATE TABLE IF NOT EXISTS navaids (
             id INTEGER UNIQUE PRIMARY KEY NOT NULL,
@@ -269,7 +270,7 @@ impl SqliteBackend {
         let query = "SELECT count(*) as count from navaids";
         con.iterate(query, |result| {
             for &(_, value) in result.iter() {
-                info!("{} airport runways loaded", value.unwrap());
+                info!("{} navaids loaded", value.unwrap());
             }
             true
         })?;
@@ -341,11 +342,7 @@ impl SqliteBackend {
             Ok(false)
         }
     }
-}
-
-#[async_trait]
-impl DatabaseBackend for SqliteBackend {
-    async fn periodical_update(&self) {
+    pub async fn periodical_update(&self) {
         loop {
             info!("Awake ! reloading data");
 
@@ -402,143 +399,258 @@ impl DatabaseBackend for SqliteBackend {
         }
     }
 
-    async fn get_airport_by_icao_code(&self, icao: String) -> Result<Value, Box<dyn Error>> {
+    pub async fn get_runways_by_icao_code(
+        &self,
+        icao: String,
+    ) -> Result<Vec<Runway>, Box<dyn Error>> {
+        let mut runways = vec![];
+        {
+            let query = "SELECT * FROM airport_runways WHERE airport_icao_code=?";
+            let con = self.connection.lock().expect(ERROR_SQLITE_ACCESS);
+            let mut runway_statement = con.prepare(query)?;
+            runway_statement.bind((1, icao.as_str()))?;
+
+            while let Ok(State::Row) = runway_statement.next() {
+                let runway = Runway {
+                    id: runway_statement.read::<i64, _>("id")?,
+                    airport_id: runway_statement.read::<i64, _>("airport_ref")?,
+                    airport_icao_code: runway_statement.read::<String, _>("airport_icao_code")?,
+                    length_ft: runway_statement.read::<i64, _>("length_ft")?,
+                    width_ft: runway_statement.read::<i64, _>("width_ft")?,
+                    surface: runway_statement.read::<i64, _>("surface")?,
+                    lighted: runway_statement.read::<i64, _>("lighted")?,
+                    closed: runway_statement.read::<i64, _>("closed")?,
+                    le_ident: runway_statement.read::<String, _>("le_ident")?,
+                    le_location: LocationPoint {
+                        r#type: LocationType::Point,
+                        coordinates: vec![
+                            runway_statement.read::<f64, _>("le_longitude_deg")?,
+                            runway_statement.read::<f64, _>("le_latitude_deg")?,
+                        ],
+                    },
+                    le_elevation_ft: runway_statement.read::<i64, _>("le_elevation_ft")?,
+                    le_heading_deg_t: runway_statement.read::<i64, _>("le_heading_degT")?,
+                    le_displaced_threshold_ft: runway_statement
+                        .read::<i64, _>("le_displaced_threshold_ft")?,
+                    he_ident: runway_statement.read::<String, _>("he_ident")?,
+                    he_location: LocationPoint {
+                        r#type: LocationType::Point,
+                        coordinates: vec![
+                            runway_statement.read::<f64, _>("he_longitude_deg")?,
+                            runway_statement.read::<f64, _>("he_latitude_deg")?,
+                        ],
+                    },
+                    he_elevation_ft: runway_statement.read::<i64, _>("he_elevation_ft")?,
+                    he_heading_deg_t: runway_statement.read::<i64, _>("he_heading_degT")?,
+                    he_displaced_threshold_ft: runway_statement
+                        .read::<i64, _>("he_displaced_threshold_ft")?,
+                };
+
+                runways.push(runway);
+            }
+        }
+        Ok(runways)
+    }
+
+    pub async fn get_frequencies_by_icao_code(
+        &self,
+        icao: String,
+    ) -> Result<Vec<Frequency>, Box<dyn Error>> {
+        let mut frequencies = vec![];
+
+        {
+            let query = "SELECT * FROM airport_frequencies WHERE airport_icao_code=?";
+            let con = self.connection.lock().expect(ERROR_SQLITE_ACCESS);
+            let mut freq_statement = con.prepare(query)?;
+            freq_statement.bind((1, icao.as_str()))?;
+
+            while let Ok(State::Row) = freq_statement.next() {
+                let frequency = Frequency {
+                    id: freq_statement.read::<i64, _>("id")?,
+                    airport_id: freq_statement.read::<i64, _>("airport_ref")?,
+                    airport_icao_code: freq_statement.read::<String, _>("airport_icao_code")?,
+                    description: freq_statement.read::<String, _>("description")?,
+                    frequency_mhz: freq_statement.read::<f64, _>("frequency_mhz")?,
+                    r#type: FrequencyType::from_str(
+                        freq_statement.read::<String, _>("type")?.as_str(),
+                    )
+                    .unwrap(),
+                };
+                frequencies.push(frequency);
+            }
+        }
+
+        Ok(frequencies)
+    }
+
+    pub async fn get_navaids_by_airport_icao_code(
+        &self,
+        icao: String,
+    ) -> Result<Vec<Navaid>, Box<dyn Error>> {
+        let mut navaids = vec![];
+        let mut ids = vec![];
+        {
+            let con = self.connection.lock().expect(ERROR_SQLITE_ACCESS);
+            let query = "SELECT id FROM navaids WHERE associated_airport=?";
+            let mut navaid_statement = con.prepare(query)?;
+            navaid_statement.bind((1, icao.as_str()))?;
+
+            while let Ok(State::Row) = navaid_statement.next() {
+                ids.push(navaid_statement.read::<i64, _>("id")?);
+            }
+        }
+
+        for id in ids {
+            let navaid = self.get_navaid_by_id(id).await?;
+            navaids.push(navaid);
+        }
+        Ok(navaids)
+    }
+
+    pub async fn get_airport_by_icao_code(&self, icao: String) -> Result<Airport, Box<dyn Error>> {
         let query = "SELECT * FROM airports WHERE icao_code=?";
         let icao = icao.to_uppercase();
 
-        let mut data = json!({});
+        let mut airport = Airport::default();
         {
             let con = self.connection.lock().expect(ERROR_SQLITE_ACCESS);
             let mut statement = con.prepare(query)?;
-            statement.bind((1, icao.as_str()))?;
+            statement.bind((1, icao.clone().as_str()))?;
 
             while let Ok(State::Row) = statement.next() {
-                for column_name in statement.column_names() {
-                    data.as_object_mut().unwrap().insert(
-                        column_name.clone(),
-                        json!(statement.read::<String, _>(column_name.as_str())?),
-                    );
-                }
-                let mut freqs = json!([]);
-                {
-                    let query = "SELECT type, description, frequency_mhz FROM airport_frequencies WHERE airport_icao_code=?";
-                    let mut freq_statement = con.prepare(query)?;
-                    freq_statement.bind((1, icao.as_str()))?;
-
-                    while let Ok(State::Row) = freq_statement.next() {
-                        let mut freq = json!({});
-                        for column_name in freq_statement.column_names() {
-                            freq.as_object_mut().unwrap().insert(
-                                column_name.clone(),
-                                json!(freq_statement.read::<String, _>(column_name.as_str())?),
-                            );
-                        }
-                        freqs.as_array_mut().unwrap().push(freq);
-                    }
-                }
-                data.as_object_mut()
-                    .unwrap()
-                    .insert(String::from("frequencies"), freqs);
-
-                let mut runways = json!([]);
-                {
-                    let query = "SELECT length_ft,width_ft,surface,lighted,closed,le_ident,le_latitude_deg,le_longitude_deg,le_elevation_ft,le_heading_degT,le_displaced_threshold_ft,he_ident,he_latitude_deg,he_longitude_deg,he_elevation_ft,he_heading_degT,he_displaced_threshold_ft FROM airport_runways WHERE airport_icao_code=?";
-                    let mut runway_statement = con.prepare(query)?;
-                    runway_statement.bind((1, icao.as_str()))?;
-
-                    while let Ok(State::Row) = runway_statement.next() {
-                        let mut runway = json!({});
-
-                        for column_name in runway_statement.column_names() {
-                            runway.as_object_mut().unwrap().insert(
-                                column_name.clone(),
-                                json!(runway_statement.read::<String, _>(column_name.as_str())?),
-                            );
-                        }
-
-                        runways.as_array_mut().unwrap().push(runway);
-                    }
-                }
-                data.as_object_mut()
-                    .unwrap()
-                    .insert(String::from("runways"), runways);
+                airport.id = statement.read::<i64, _>("id")?;
+                airport.icao_code = statement.read::<String, _>("icao_code")?;
+                airport.r#type =
+                    AirportType::from_str(statement.read::<String, _>("type")?.as_str()).unwrap();
+                airport.name = statement.read::<String, _>("name")?;
+                airport.location = LocationPoint {
+                    r#type: LocationType::Point,
+                    coordinates: vec![
+                        statement.read::<f64, _>("longitude_deg")?,
+                        statement.read::<f64, _>("latitude_deg")?,
+                    ],
+                };
+                airport.elevation_ft = statement.read::<i64, _>("elevation_ft")?;
+                airport.continent = statement.read::<String, _>("continent")?;
+                airport.iso_country = statement.read::<String, _>("iso_country")?;
+                airport.iso_region = statement.read::<String, _>("iso_region")?;
+                airport.municipality = statement.read::<String, _>("municipality")?;
+                airport.scheduled_service = statement.read::<String, _>("scheduled_service")?;
+                airport.gps_code = statement.read::<String, _>("gps_code")?;
+                airport.iata_code = statement.read::<String, _>("iata_code")?;
+                airport.local_code = statement.read::<String, _>("local_code")?;
+                airport.home_link = statement.read::<String, _>("home_link")?;
+                airport.wikipedia_link = statement.read::<String, _>("wikipedia_link")?;
+                airport.keywords = statement.read::<String, _>("keywords")?;
             }
         }
-        let mut navaids = json!([]);
-        {
-            let mut ids = vec![];
-            {
-                let con = self.connection.lock().expect(ERROR_SQLITE_ACCESS);
-                let query = "SELECT id FROM navaids WHERE associated_airport=?";
-                let mut navaid_statement = con.prepare(query)?;
-                navaid_statement.bind((1, icao.as_str()))?;
-
-                while let Ok(State::Row) = navaid_statement.next() {
-                    ids.push(navaid_statement.read::<i64, _>("id")?);
-                }
-            }
-
-            for id in ids {
-                let navaid = self.get_navaid_by_id(id).await?;
-                navaids.as_array_mut().unwrap().push(navaid);
-            }
-        }
-        data.as_object_mut()
-            .unwrap()
-            .insert(String::from("navaids"), navaids);
-        Ok(data)
+        airport.runways = self.get_runways_by_icao_code(icao.clone()).await?;
+        airport.frequencies = self.get_frequencies_by_icao_code(icao.clone()).await?;
+        airport.navaids = self.get_navaids_by_airport_icao_code(icao.clone()).await?;
+        Ok(airport)
     }
 
-    async fn get_navaid_by_icao_code(&self, icao: String) -> Result<Value, Box<dyn Error>> {
+    pub async fn get_navaids_by_icao_code(
+        &self,
+        icao: String,
+    ) -> Result<Vec<Navaid>, Box<dyn Error>> {
+        let mut navaids = vec![];
         let query = "SELECT * FROM navaids WHERE icao_code=?";
 
         let icao = icao.to_uppercase();
-
-        let mut data = json!([]);
 
         let con = self.connection.lock().expect(ERROR_SQLITE_ACCESS);
         let mut statement = con.prepare(query)?;
         statement.bind((1, icao.as_str()))?;
 
         while let Ok(State::Row) = statement.next() {
-            let mut navaid_data = json!({});
-
-            for column_name in statement.column_names() {
-                navaid_data.as_object_mut().unwrap().insert(
-                    column_name.clone(),
-                    json!(statement.read::<String, _>(column_name.as_str())?),
-                );
-            }
-            data.as_array_mut().unwrap().push(navaid_data);
+            let navaid = Navaid {
+                id: statement.read::<i64, _>("id")?,
+                filename: statement.read::<String, _>("filename")?,
+                icao_code: statement.read::<String, _>("icao_code")?,
+                name: statement.read::<String, _>("elevation_ft")?,
+                r#type: NavaidType::from_str(statement.read::<String, _>("type")?.as_str())
+                    .unwrap(),
+                frequency_khz: statement.read::<i64, _>("frequency_khz")?,
+                location: LocationPoint {
+                    r#type: LocationType::Point,
+                    coordinates: vec![
+                        statement.read::<f64, _>("longitude_deg")?,
+                        statement.read::<f64, _>("latitude_deg")?,
+                    ],
+                },
+                elevation_ft: statement.read::<i64, _>("elevation_ft")?,
+                iso_country: statement.read::<String, _>("iso_country")?,
+                dme_frequency_khz: statement.read::<i64, _>("dme_frequency_khz")?,
+                dme_channel: statement.read::<String, _>("dme_channel")?,
+                dme_location: LocationPoint {
+                    r#type: LocationType::Point,
+                    coordinates: vec![
+                        statement.read::<f64, _>("dme_longitude_deg")?,
+                        statement.read::<f64, _>("dme_latitude_deg")?,
+                    ],
+                },
+                dme_elevation_ft: statement.read::<i64, _>("dme_elevation_ft")?,
+                slaved_variation_deg: statement.read::<i64, _>("slaved_variation_deg")?,
+                magnetic_variation_deg: statement.read::<i64, _>("magnetic_variation_deg")?,
+                usage_type: statement.read::<String, _>("usageType")?,
+                power: statement.read::<String, _>("power")?,
+                associated_airport: statement.read::<String, _>("associated_airport")?,
+            };
+            navaids.push(navaid);
         }
-        Ok(data)
+        Ok(navaids)
     }
 
-    async fn get_navaid_by_id(&self, id: i64) -> Result<Value, Box<dyn Error>> {
+    pub async fn get_navaid_by_id(&self, id: i64) -> Result<Navaid, Box<dyn Error>> {
         let query = "SELECT * FROM navaids WHERE id=?";
 
         let con = self.connection.lock().expect(ERROR_SQLITE_ACCESS);
         let mut statement = con.prepare(query)?;
         statement.bind((1, id))?;
         statement.next()?;
-        let mut navaid_data = json!({});
-
-        for column_name in statement.column_names() {
-            navaid_data.as_object_mut().unwrap().insert(
-                column_name.clone(),
-                json!(statement.read::<String, _>(column_name.as_str())?),
-            );
-        }
-        Ok(navaid_data)
+        let navaid = Navaid {
+            id: statement.read::<i64, _>("id")?,
+            filename: statement.read::<String, _>("filename")?,
+            icao_code: statement.read::<String, _>("icao_code")?,
+            name: statement.read::<String, _>("elevation_ft")?,
+            r#type: NavaidType::from_str(statement.read::<String, _>("type")?.as_str()).unwrap(),
+            frequency_khz: statement.read::<i64, _>("frequency_khz")?,
+            location: LocationPoint {
+                r#type: LocationType::Point,
+                coordinates: vec![
+                    statement.read::<f64, _>("longitude_deg")?,
+                    statement.read::<f64, _>("latitude_deg")?,
+                ],
+            },
+            elevation_ft: statement.read::<i64, _>("elevation_ft")?,
+            iso_country: statement.read::<String, _>("iso_country")?,
+            dme_frequency_khz: statement.read::<i64, _>("dme_frequency_khz")?,
+            dme_channel: statement.read::<String, _>("dme_channel")?,
+            dme_location: LocationPoint {
+                r#type: LocationType::Point,
+                coordinates: vec![
+                    statement.read::<f64, _>("dme_longitude_deg")?,
+                    statement.read::<f64, _>("dme_latitude_deg")?,
+                ],
+            },
+            dme_elevation_ft: statement.read::<i64, _>("dme_elevation_ft")?,
+            slaved_variation_deg: statement.read::<i64, _>("slaved_variation_deg")?,
+            magnetic_variation_deg: statement.read::<i64, _>("magnetic_variation_deg")?,
+            usage_type: statement.read::<String, _>("usageType")?,
+            power: statement.read::<String, _>("power")?,
+            associated_airport: statement.read::<String, _>("associated_airport")?,
+        };
+        Ok(navaid)
     }
 
-    async fn search_navaid(
+    pub async fn search_navaid(
         &self,
         search: Option<String>,
         page: Option<u32>,
         country: Option<String>,
         navaid_type: Option<String>,
-    ) -> Result<Value, Box<dyn Error>> {
+    ) -> Result<Vec<Navaid>, Box<dyn Error>> {
         let con = self.connection.lock().expect(ERROR_SQLITE_ACCESS);
 
         // First build the query
@@ -594,28 +706,53 @@ impl DatabaseBackend for SqliteBackend {
         }
 
         // Execute statement and get the results
-        let mut data = json!([]);
+        let mut navaids = vec![];
         while let Ok(State::Row) = statement.next() {
-            let mut navaid_data = json!({});
-
-            for column_name in statement.column_names() {
-                navaid_data.as_object_mut().unwrap().insert(
-                    column_name.clone(),
-                    json!(statement.read::<String, _>(column_name.as_str())?),
-                );
-            }
-            data.as_array_mut().unwrap().push(navaid_data);
+            let navaid = Navaid {
+                id: statement.read::<i64, _>("id")?,
+                filename: statement.read::<String, _>("filename")?,
+                icao_code: statement.read::<String, _>("icao_code")?,
+                name: statement.read::<String, _>("elevation_ft")?,
+                r#type: NavaidType::from_str(statement.read::<String, _>("type")?.as_str())
+                    .unwrap(),
+                frequency_khz: statement.read::<i64, _>("frequency_khz")?,
+                location: LocationPoint {
+                    r#type: LocationType::Point,
+                    coordinates: vec![
+                        statement.read::<f64, _>("longitude_deg")?,
+                        statement.read::<f64, _>("latitude_deg")?,
+                    ],
+                },
+                elevation_ft: statement.read::<i64, _>("elevation_ft")?,
+                iso_country: statement.read::<String, _>("iso_country")?,
+                dme_frequency_khz: statement.read::<i64, _>("dme_frequency_khz")?,
+                dme_channel: statement.read::<String, _>("dme_channel")?,
+                dme_location: LocationPoint {
+                    r#type: LocationType::Point,
+                    coordinates: vec![
+                        statement.read::<f64, _>("dme_longitude_deg")?,
+                        statement.read::<f64, _>("dme_latitude_deg")?,
+                    ],
+                },
+                dme_elevation_ft: statement.read::<i64, _>("dme_elevation_ft")?,
+                slaved_variation_deg: statement.read::<i64, _>("slaved_variation_deg")?,
+                magnetic_variation_deg: statement.read::<i64, _>("magnetic_variation_deg")?,
+                usage_type: statement.read::<String, _>("usageType")?,
+                power: statement.read::<String, _>("power")?,
+                associated_airport: statement.read::<String, _>("associated_airport")?,
+            };
+            navaids.push(navaid);
         }
-        Ok(data)
+        Ok(navaids)
     }
 
-    async fn search_airport(
+    pub async fn search_airport(
         &self,
         search: Option<String>,
         page: Option<u32>,
         country: Option<String>,
         airport_type: Option<String>,
-    ) -> Result<Value, Box<dyn Error>> {
+    ) -> Result<Vec<Airport>, Box<dyn Error>> {
         let codes = {
             let con = self.connection.lock().expect(ERROR_SQLITE_ACCESS);
 
@@ -680,12 +817,12 @@ impl DatabaseBackend for SqliteBackend {
             codes
         };
 
-        let mut data = json!([]);
+        let mut airports = vec![];
         for code in codes {
-            let airport_data = self.get_airport_by_icao_code(code).await?;
-            data.as_array_mut().unwrap().push(airport_data);
+            let airport = self.get_airport_by_icao_code(code).await?;
+            airports.push(airport);
         }
 
-        Ok(data)
+        Ok(airports)
     }
 }
