@@ -651,7 +651,7 @@ impl SqliteBackend {
     pub async fn search_navaid(
         &self,
         search: Option<String>,
-        page: Option<u32>,
+        page: Option<u64>,
         country: Option<String>,
         navaid_type: Option<String>,
         _latitude: Option<f64>,
@@ -755,7 +755,7 @@ impl SqliteBackend {
     pub async fn search_airport(
         &self,
         search: Option<String>,
-        page: Option<u32>,
+        page: Option<u64>,
         country: Option<String>,
         airport_type: Option<String>,
         _latitude: Option<f64>,

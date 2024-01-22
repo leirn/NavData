@@ -14,7 +14,7 @@ pub fn register_routes(cfg: &mut web::ServiceConfig) {
 
 #[derive(Deserialize)]
 struct FormData {
-    page: Option<u32>,
+    page: Option<u64>,
     search: Option<String>,
     country: Option<String>,
     navaid_type: Option<String>,

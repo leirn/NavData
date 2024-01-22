@@ -280,7 +280,7 @@ impl MongoDbBackend {
     pub async fn search_navaid(
         &self,
         search: Option<String>,
-        page: Option<u32>,
+        page: Option<u64>,
         country: Option<String>,
         navaid_type: Option<String>,
         latitude: Option<f64>,
@@ -329,7 +329,7 @@ impl MongoDbBackend {
 
         let filter = doc! {"$and":ands};
 
-        let page = page.unwrap_or(0) as u64;
+        let page = page.unwrap_or(0);
         let options = FindOptions::builder().skip(page * 100).limit(100).build();
 
         let mut result = coll.find(filter, options).await?;
@@ -342,7 +342,7 @@ impl MongoDbBackend {
     pub async fn search_airport(
         &self,
         search: Option<String>,
-        page: Option<u32>,
+        page: Option<u64>,
         country: Option<String>,
         airport_type: Option<String>,
         latitude: Option<f64>,
@@ -392,7 +392,7 @@ impl MongoDbBackend {
 
         let filter = doc! {"$and":ands};
 
-        let page = page.unwrap_or(0) as u64;
+        let page = page.unwrap_or(0);
         let options = FindOptions::builder().skip(page * 100).limit(100).build();
 
         let mut result = coll.find(filter, options).await?;

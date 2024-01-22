@@ -504,7 +504,7 @@ impl DatabaseBackend {
     pub async fn search_navaid(
         self: &Self,
         search: Option<String>,
-        page: Option<u32>,
+        page: Option<u64>,
         country: Option<String>,
         navaid_type: Option<String>,
         latitude: Option<f64>,
@@ -530,7 +530,7 @@ impl DatabaseBackend {
     pub async fn search_airport(
         self: &Self,
         search: Option<String>,
-        page: Option<u32>,
+        page: Option<u64>,
         country: Option<String>,
         airport_type: Option<String>,
         latitude: Option<f64>,
