@@ -389,7 +389,10 @@ impl MongoDbBackend {
             ands.push(type_filter);
         }
 
-        let filter = doc! {"$and":ands};
+        let filter = match ands.len() {
+            0 => None,
+            _ => Some(doc! {"$and":ands}),
+        };
 
         let page = page.unwrap_or(0);
         let options = FindOptions::builder().skip(page * 100).limit(100).build();
@@ -452,7 +455,10 @@ impl MongoDbBackend {
             ands.push(type_filter);
         }
 
-        let filter = doc! {"$and":ands};
+        let filter = match ands.len() {
+            0 => None,
+            _ => Some(doc! {"$and":ands}),
+        };
 
         let page = page.unwrap_or(0);
         let options = FindOptions::builder().skip(page * 100).limit(100).build();
