@@ -1,9 +1,8 @@
 use super::error::AuthorizationError;
+use crate::app::db::AppState;
+use crate::app::messages::TOKEN_COOKIE;
 use actix_web::dev::{forward_ready, Service, ServiceResponse, Transform};
 use actix_web::{dev::ServiceRequest, Error};
-
-use crate::app::messages::{PARAM_TOKEN_LIST, TOKEN_COOKIE};
-use std::env;
 use std::{
     future::{ready, Future, Ready},
     pin::Pin,
@@ -74,22 +73,20 @@ where
             let conn_info = req.connection_info().clone();
             let real_remote_addr = conn_info.realip_remote_addr().unwrap_or("unknown");
 
-            let tokens = env::var(PARAM_TOKEN_LIST);
+            let app_data = req.app_data::<AppState>().unwrap();
 
-            let success = match tokens {
-                Ok(tokens) => {
-                    let tokens: Vec<&str> = tokens.split(",").collect();
-
+            let success = match app_data.config.security.auth_tokens.len() {
+                // If no token set
+                0 => true,
+                _ => {
                     let token = match req.cookie(TOKEN_COOKIE) {
                         Some(cookie) => cookie.value().to_owned(),
                         None => {
                             return Err(Error::from(AuthorizationError::NoToken).into());
                         }
                     };
-                    tokens.len() == 0 || tokens.contains(&token.as_str())
+                    app_data.config.security.auth_tokens.contains(&token)
                 }
-                // If not set, bypass auth
-                Err(_) => true,
             };
 
             match success {

@@ -1,6 +1,6 @@
 [package]
 name = "nav_data"
-version = "0.1.0"
+version = "0.1.5"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -10,7 +10,7 @@ zstd = "0.13.0"
 actix = "0.13.1"
 actix-cors = "0.7"
 actix-web = "4.4.1"
-env_logger = "0.10.0"
+env_logger = "0.11.0"
 log = "0.4"
 reqwest = { version = "0.11", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 serde = {version = "1.0.163", features = ["derive"] }
@@ -20,4 +20,17 @@ sqlite = "0.32.0"
 actix-rt = "2.9.0"
 tokio = "1.35.1"
 derive_more = "0.99.17"
-async-trait = "0.1.77"
+mongodb = "2.8.0"
+bson = "2.8.1"
+clap = { version = "4.4.18", features = ["derive"] }
+clap_derive = "4.4.7"
+futures = "0.3.30"
+serde_yaml = "0.9.30"
+
+[dependencies.uuid]
+version = "1.7.0"
+features = [
+    "v4",                # Lets you generate random UUIDs
+    "fast-rng",          # Use a faster (but still sufficiently random) RNG
+    "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
+]

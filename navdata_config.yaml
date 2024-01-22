@@ -1,0 +1,11 @@
+http:
+  host: 127.0.0.1
+  port: 8080
+security:
+  auth_tokens:
+    - aaaa
+    - bbbb
+    - cccc
+database:
+  backend : MONGODB # can be either SQLITE or MONGODB
+  path : mongodb://localhost:27017 # Mongo URI if mongo (mandatory. Path to sqlite file if sqlite. If sqlite and no path, memory is used
