@@ -3,7 +3,6 @@ pub const ERROR_SQLITE_ACCESS: &str = "Error while accessing SQLite connection";
 pub const CSV_FORMAT_ERROR: &str = "CSV file does not have the right format";
 
 // Parameters
-pub const PARAM_TOKEN_LIST: &str = "TOKEN_LIST";
 pub const TOKEN_COOKIE: &str = "navaid_auth_token";
 
 // HTTP

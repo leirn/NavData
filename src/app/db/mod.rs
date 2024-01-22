@@ -3,6 +3,7 @@ pub mod mongodb;
 pub mod sqlite;
 use self::mongodb::MongoDbBackend;
 use self::sqlite::SqliteBackend;
+use crate::app::config::Config;
 use log::error;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
@@ -414,6 +415,7 @@ pub struct Navaid {
 
 pub struct AppState {
     pub database: DatabaseBackend,
+    pub config: Config,
 }
 
 pub async fn periodical_update(app_state: web::Data<AppState>) {
@@ -421,8 +423,9 @@ pub async fn periodical_update(app_state: web::Data<AppState>) {
     state.database.periodical_update().await
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Default, Deserialize)]
 pub enum BackendType {
+    #[default]
     SQLITE,
     MONGODB,
 }

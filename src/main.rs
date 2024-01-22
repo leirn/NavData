@@ -1,9 +1,11 @@
 mod app;
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, web, App, HttpServer};
+use app::config::Config;
 use app::db::{periodical_update, AppState, BackendType, DatabaseBackend};
 use app::security::simple_token::SimpleToken;
 use clap::Parser;
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -31,6 +33,10 @@ struct Args {
     /// loglevel. 0 for error, 1 for warn, 2 for info, 3 for debug
     #[arg(short, long, default_value_t = 2)]
     loglevel: u8,
+
+    /// path to YAML config file
+    #[arg(short, long)]
+    config: PathBuf,
 }
 
 #[actix_web::main]
@@ -39,21 +45,40 @@ async fn main() -> std::io::Result<()> {
 
     let args = Args::parse();
 
-    let host = args.address;
-    let port = args.port;
+    let mut config = Config::default();
+    if args.config.exists() {
+        let f = std::fs::File::open(args.config).expect("Could not open file.");
+        config = serde_yaml::from_reader(f).expect("Could not read values.");
+    } else {
+        config.http.host = args.address.clone();
+        config.http.port = args.port;
 
-    let backend_type = {
-        if args.mongodb {
-            BackendType::MONGODB
-        } else {
-            BackendType::SQLITE
-        }
-    };
-    let database_path = args.db_path;
+        config.database.backend = {
+            if args.mongodb {
+                BackendType::MONGODB
+            } else {
+                BackendType::SQLITE
+            }
+        };
+        config.database.path = Some(args.db_path.clone());
+    }
+    let backend = DatabaseBackend::new(
+        config.database.backend,
+        config
+            .database
+            .path
+            .clone()
+            .unwrap_or(":memory:".to_string()),
+    )
+    .await;
 
-    let backend = DatabaseBackend::new(backend_type, database_path).await;
+    let host = config.http.host.clone();
+    let port = config.http.port;
 
-    let app_state = web::Data::new(AppState { database: backend });
+    let app_state: web::Data<AppState> = web::Data::new(AppState {
+        database: backend,
+        config: config,
+    });
 
     actix_rt::spawn(periodical_update(app_state.clone()));
 

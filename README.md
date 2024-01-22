@@ -29,3 +29,23 @@ This data MUST NOT be used to plan real life flights.
 - ```GET /airport/{icao}``` : look for an airport based on its ICAO code
 - ```GET /navaid?search={query}``` : look for a navaid (VOR, DME, ADF...) based on ```query``` string. Answer first 100 results
 - ```GET /navaid/{icao}``` : look for an navaid based on its ICAO code
+
+### Config file
+
+Config files must be given for docker as ```/config/config.yaml```.
+
+Format is:
+
+```yaml
+http:
+  host: 127.0.0.1
+  port: 8080
+security:
+  auth_tokens:
+    - aaaa
+    - bbbb
+    - cccc
+database:
+  backend : MONGODB # can be either SQLITE or MONGODB
+  path : mongodb://localhost:27017 # Mongo URI if mongo (mandatory. Path to sqlite file if sqlite. If sqlite and no path, memory is used
+```
