@@ -20,7 +20,7 @@ COPY . /app
 RUN apt-get update && apt-get -y install sqlite3
 RUN cargo build --release
 
-FROM gcr.io/distroless/cc-debian12:lastest
+FROM gcr.io/distroless/cc-debian12
 
 ENV DATABASE_FOLDER=/data
 
