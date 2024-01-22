@@ -197,11 +197,6 @@ impl MongoDbBackend {
                 break;
             }
 
-            // let result = airports_collection
-            //     .insert_many(airports, None)
-            //     .await
-            //     .unwrap();
-
             for airport in airports {
                 if airport.icao_code.len() < 4 {
                     continue;
@@ -213,7 +208,6 @@ impl MongoDbBackend {
                     .unwrap();
                 airport_count += 1;
             }
-            // airport_count += result.inserted_ids.len();
             page += 1
         }
         info!("{} airports added to MongoDB", airport_count);
