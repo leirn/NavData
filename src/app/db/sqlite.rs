@@ -128,7 +128,7 @@ impl SqliteBackend {
         Ok(())
     }
 
-    async fn load_airports(&self) -> Result<(), Box<dyn Error>> {
+    pub async fn load_airports(&self) -> Result<(), Box<dyn Error>> {
         let result = reqwest::get(format!("{}{}", super::CSV_ROOT_URL, super::AIRPORT_CSV)).await?;
         let data = result.text().await?;
         let mut reader = csv::ReaderBuilder::new().from_reader(data.as_bytes());
@@ -163,7 +163,7 @@ impl SqliteBackend {
         Ok(())
     }
 
-    async fn load_airport_frequencies(&self) -> Result<(), Box<dyn Error>> {
+    pub async fn load_airport_frequencies(&self) -> Result<(), Box<dyn Error>> {
         let result = reqwest::get(format!(
             "{}{}",
             super::CSV_ROOT_URL,
@@ -203,7 +203,7 @@ impl SqliteBackend {
         Ok(())
     }
 
-    async fn load_airport_runways(&self) -> Result<(), Box<dyn Error>> {
+    pub async fn load_airport_runways(&self) -> Result<(), Box<dyn Error>> {
         let result = reqwest::get(format!(
             "{}{}",
             super::CSV_ROOT_URL,
@@ -243,7 +243,7 @@ impl SqliteBackend {
         Ok(())
     }
 
-    async fn load_navaids(&self) -> Result<(), Box<dyn Error>> {
+    pub async fn load_navaids(&self) -> Result<(), Box<dyn Error>> {
         let result = reqwest::get(format!("{}{}", super::CSV_ROOT_URL, super::NAVAID_CSV)).await?;
         let data = result.text().await?;
         let mut reader = csv::ReaderBuilder::new().from_reader(data.as_bytes());
@@ -475,6 +475,7 @@ impl SqliteBackend {
                         freq_statement.read::<String, _>("type")?.as_str(),
                     )
                     .unwrap(),
+                    raw_type: freq_statement.read::<String, _>("type")?,
                 };
                 frequencies.push(frequency);
             }
@@ -507,7 +508,10 @@ impl SqliteBackend {
         Ok(navaids)
     }
 
-    pub async fn get_airport_by_icao_code(&self, icao: String) -> Result<Airport, Box<dyn Error>> {
+    pub async fn get_airport_by_icao_code(
+        &self,
+        icao: String,
+    ) -> Result<Option<Airport>, Box<dyn Error>> {
         let query = "SELECT * FROM airports WHERE icao_code=?";
         let icao = icao.to_uppercase();
 
@@ -547,7 +551,7 @@ impl SqliteBackend {
         airport.runways = self.get_runways_by_icao_code(icao.clone()).await?;
         airport.frequencies = self.get_frequencies_by_icao_code(icao.clone()).await?;
         airport.navaids = self.get_navaids_by_airport_icao_code(icao.clone()).await?;
-        Ok(airport)
+        Ok(Some(airport))
     }
 
     pub async fn get_navaids_by_icao_code(
@@ -602,7 +606,7 @@ impl SqliteBackend {
         Ok(navaids)
     }
 
-    pub async fn get_navaid_by_id(&self, id: i64) -> Result<Navaid, Box<dyn Error>> {
+    async fn get_navaid_by_id(&self, id: i64) -> Result<Navaid, Box<dyn Error>> {
         let query = "SELECT * FROM navaids WHERE id=?";
 
         let con = self.connection.lock().expect(ERROR_SQLITE_ACCESS);
@@ -650,6 +654,8 @@ impl SqliteBackend {
         page: Option<u32>,
         country: Option<String>,
         navaid_type: Option<String>,
+        _latitude: Option<f64>,
+        _longitude: Option<f64>,
     ) -> Result<Vec<Navaid>, Box<dyn Error>> {
         let con = self.connection.lock().expect(ERROR_SQLITE_ACCESS);
 
@@ -752,6 +758,8 @@ impl SqliteBackend {
         page: Option<u32>,
         country: Option<String>,
         airport_type: Option<String>,
+        _latitude: Option<f64>,
+        _longitude: Option<f64>,
     ) -> Result<Vec<Airport>, Box<dyn Error>> {
         let codes = {
             let con = self.connection.lock().expect(ERROR_SQLITE_ACCESS);
@@ -820,7 +828,9 @@ impl SqliteBackend {
         let mut airports = vec![];
         for code in codes {
             let airport = self.get_airport_by_icao_code(code).await?;
-            airports.push(airport);
+            if airport.is_some() {
+                airports.push(airport.unwrap());
+            }
         }
 
         Ok(airports)
