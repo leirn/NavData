@@ -124,11 +124,45 @@ impl MongoDbBackend {
         info!("Index {} created for airports collection", index.index_name);
 
         // name, municipality, iata_code, iso_country and type are mandatory to speed_up searchs on airports
+        let index_model = IndexModel::builder().keys(doc! { "name.$**": 1  }).build();
+        match airports_collection
+            .create_index(index_model.clone(), None)
+            .await
+        {
+            Ok(index) => info!("Index {} created for airports collection", index.index_name),
+            Err(err) => info!("Index not created, may alreay exists : {}", err),
+        }
         let index_model = IndexModel::builder()
-            .keys(
-                doc! { "name": 1, "municipality": 1, "iata_code": 1, "iso_country": 1, "type": 1  },
-            )
+            .keys(doc! { "municipality.$**": 1 })
             .build();
+        match airports_collection
+            .create_index(index_model.clone(), None)
+            .await
+        {
+            Ok(index) => info!("Index {} created for airports collection", index.index_name),
+            Err(err) => info!("Index not created, may alreay exists : {}", err),
+        }
+        let index_model = IndexModel::builder()
+            .keys(doc! { "iata_code.$**": 1 })
+            .build();
+        match airports_collection
+            .create_index(index_model.clone(), None)
+            .await
+        {
+            Ok(index) => info!("Index {} created for airports collection", index.index_name),
+            Err(err) => info!("Index not created, may alreay exists : {}", err),
+        }
+        let index_model = IndexModel::builder()
+            .keys(doc! {  "iso_country.$**": 1  })
+            .build();
+        match airports_collection
+            .create_index(index_model.clone(), None)
+            .await
+        {
+            Ok(index) => info!("Index {} created for airports collection", index.index_name),
+            Err(err) => info!("Index not created, may alreay exists : {}", err),
+        }
+        let index_model = IndexModel::builder().keys(doc! { "type.$**": 1  }).build();
         match airports_collection
             .create_index(index_model.clone(), None)
             .await
@@ -138,10 +172,44 @@ impl MongoDbBackend {
         }
 
         // name, filename, associated_airport, iso_country and type are mandatory to speed_up searchs on navaids
+        let index_model = IndexModel::builder().keys(doc! { "name.$**": 1 }).build();
+        match navaids_collection
+            .create_index(index_model.clone(), None)
+            .await
+        {
+            Ok(index) => info!("Index {} created for navaids collection", index.index_name),
+            Err(err) => info!("Index not created, may alreay exists : {}", err),
+        }
         let index_model = IndexModel::builder()
-            .keys(
-                doc! { "name": 1,"filename": 1,"associated_airport": 1,"type": 1,"iso_country": 1 },
-            )
+            .keys(doc! { "filename.$**": 1 })
+            .build();
+        match navaids_collection
+            .create_index(index_model.clone(), None)
+            .await
+        {
+            Ok(index) => info!("Index {} created for navaids collection", index.index_name),
+            Err(err) => info!("Index not created, may alreay exists : {}", err),
+        }
+        let index_model = IndexModel::builder()
+            .keys(doc! { "associated_airport.$**": 1,"type.$**": 1 })
+            .build();
+        match navaids_collection
+            .create_index(index_model.clone(), None)
+            .await
+        {
+            Ok(index) => info!("Index {} created for navaids collection", index.index_name),
+            Err(err) => info!("Index not created, may alreay exists : {}", err),
+        }
+        let index_model = IndexModel::builder().keys(doc! {"type.$**": 1 }).build();
+        match navaids_collection
+            .create_index(index_model.clone(), None)
+            .await
+        {
+            Ok(index) => info!("Index {} created for navaids collection", index.index_name),
+            Err(err) => info!("Index not created, may alreay exists : {}", err),
+        }
+        let index_model = IndexModel::builder()
+            .keys(doc! {"iso_country.$**": 1 })
             .build();
         match navaids_collection
             .create_index(index_model.clone(), None)
@@ -290,9 +358,9 @@ impl MongoDbBackend {
         if search.is_some() {
             let search = search.unwrap();
             let search_filter = doc! {"$or": [
-            {"icao_code":search.clone()},
-            {"name":search.clone()},
-            {"associated_airport":search.clone()}
+            {"icao_code":{"$regex" : search.clone(), "$options" : "i"}},
+            {"name":{"$regex" : search.clone(), "$options" : "i"}},
+            {"associated_airport":{"$regex" : search.clone(), "$options" : "i"}}
             ]};
             ands.push(search_filter);
         }
@@ -352,10 +420,10 @@ impl MongoDbBackend {
         if search.is_some() {
             let search = search.unwrap();
             let search_filter = doc! {"$or": [
-            {"icao_code":search.clone()},
-            {"name":search.clone()},
-            {"municipality":search.clone()},
-            {"iata_code":search.clone()}
+            {"icao_code":{"$regex" : search.clone(), "$options" : "i"}},
+            {"name":{"$regex" : search.clone(), "$options" : "i"}},
+            {"municipality":{"$regex" : search.clone(), "$options" : "i"}},
+            {"iata_code":{"$regex" : search.clone(), "$options" : "i"}}
             ]};
             ands.push(search_filter);
         }
