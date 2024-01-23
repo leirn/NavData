@@ -1,0 +1,422 @@
+openapi: 3.0.0
+info:
+  version: '1'
+  title: navdata
+  description: ''
+components:
+    schemas:
+      location:
+        description: GeoJSON Location point
+        type: object
+        properties:
+          type:
+            type: string
+            enum:
+            - Point
+          coordinates:
+            description: A 2 element array in form [latitude, longitude]
+            type: array
+            maxItems: 2
+            minItems: 2
+            items:
+              type: number
+              format: float64
+      navaid:
+        description: Navaid object (VOR, DME, ADF, ...)
+        type: object
+        properties:
+          id:
+            type: integer
+            format: int64
+          filename:
+            type: string
+          icao_code:
+            type: string
+          type:
+            type: string
+            enum:
+              - Vor
+              - VorDme
+              - Dme
+              - Adf
+              - VorTac
+              - Tacan
+              - Ndb
+              - NdbDme
+              - Unknown
+          frequency_khz:
+            type: integer
+            format: int64
+          location:
+            $ref: '#/components/schemas/location'
+          elevation_ft:
+            description: Navaid elevation in feet
+            type: integer
+            format: int64
+          iso_country:
+            type: string
+          dme_frequency_khz:
+            type: integer
+            format: int64
+          dme_channel:
+            type: string
+          dme_location:
+            $ref: '#/components/schemas/location'
+          dme_elevation_ft:
+            description: DME elevation in feet
+            type: integer
+            format: int64
+          slaved_variation_deg:
+            type: integer
+            format: int64
+          magnetic_variation_deg:
+            type: integer
+            format: int64
+          usage_type:
+            type: string
+          power:
+            type: string
+          associated_airport:
+            description: When relevant, id of associated airport
+            type: string
+      airport:
+        description: Airport object
+        type: object
+        properties:
+          id:
+            type: integer
+            format: int64
+          type:
+            type: string
+            enum:
+              - SmallAirport
+              - MediumAirport
+              - LargeAirport
+              - Heliport
+              - SeaplaneBase
+              - BalloonPort
+              - Closed
+              - Unknown
+          name:
+            type: string
+          location:
+            $ref: '#/components/schemas/location'
+          elevation_ft:
+            description: Airport elevation in feet
+            type: integer
+            format: int64
+          continent:
+            type: string
+          iso_country:
+            type: string
+          iso_region:
+            type: string
+          municipality:
+            type: string
+          scheduled_service:
+            type: string
+          gps_code:
+            type: string
+          iata_code:
+            type: string
+          local_code:
+            type: string
+          home_link:
+            type: string
+          wikipedia_link:
+            type: string
+          keywords:
+            type: string
+          runways:
+            type: array
+            items:
+              $ref: '#/components/schemas/runway'
+          frequencies:
+            type: array
+            items:
+              $ref: '#/components/schemas/frequency'
+          navaids:
+            type: array
+            items:
+              $ref: '#/components/schemas/navaid'
+      runway:
+        description: Runway object
+        type: object
+        properties:
+          id:
+            type: integer
+            format: int64
+          airport_id:
+            type: integer
+            format: int64
+          airport_icao_code:
+            type: string
+          length_ft:
+            type: integer
+            format: int64
+          width_ft:
+            type: integer
+            format: int64
+          surface:
+            type: integer
+            format: int64
+          lighted:
+            type: boolean
+          closed:
+            type: boolean
+          le_ident:
+            description: Low-end runway name
+            type: string
+          le_location:
+            description: Low-end location
+            $ref: '#/components/schemas/location'
+          le_elevation_ft:
+            type: integer
+            format: int64
+          le_heading_deg_t:
+            type: integer
+            format: int64
+          le_displaced_threshold_ft:
+            type: integer
+            format: int64
+          he_ident:
+            description: High-end runway name
+            type: string
+          he_location:
+            description: High-end location
+            $ref: '#/components/schemas/location'
+          he_elevation_ft:
+            type: integer
+            format: int64
+          he_heading_deg_t:
+            type: integer
+            format: int64
+          he_displaced_threshold_ft:
+            type: integer
+            format: int64
+      frequency:
+        description: Frequency object
+        type: object
+        properties:
+          id:
+            type: integer
+            format: int64
+          airport_id:
+            type: integer
+            format: int64
+          airport_icao_code:
+            type: string
+          type:
+            type: string
+          raw_type:
+            type: string
+          description:
+            type: string
+          frequency_mhz:
+            type: number
+            format: flot64
+paths:
+  /airport:
+    get:
+      summary: Retrieve a list of airports
+      description: Limited to 100 results
+      parameters:
+      - name: search
+        in: query
+        description: string to search within the database
+        required: false
+        schema:
+          type: string
+      - name: page
+        in: query
+        description: Page number
+        required: false
+        schema:
+          type: string
+      - name: country
+        in: query
+        description: Country ISO code
+        required: false
+        schema:
+          type: string
+      - name: airport_type
+        in: query
+        description: Type of airport to select
+        required: false
+        schema:
+            type: string
+            enum:
+              - SmallAirport
+              - MediumAirport
+              - LargeAirport
+              - Heliport
+              - SeaplaneBase
+              - BalloonPort
+              - Closed
+              - Unknown
+      - name: latitude
+        in: query
+        description: if present with longitude, order by nearest objects from this point
+        required: false
+        schema:
+          type: number
+          format: float64
+      - name: longitude
+        in: query
+        description: if present with latitude, order by nearest objects from this point
+        required: false
+        schema:
+          type: number
+          format: float64
+      responses:
+        '200':
+          description: A paged array of airports
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - success
+                      - error
+                  description:
+                    type: string
+                  airports:
+                    type: array
+                    maxItems: 100
+                    minItems: 0
+                    items:
+                    $ref: '#/components/schemas/airport'
+  /airport/{icao_code}:
+    get:
+      summary: Retrieve airport
+      parameters:
+      - name: icao_code
+        in: path
+        description: ICAO code of requested airport
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: The requested airport
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - success
+                      - error
+                  description:
+                    type: string
+                  count:
+                    type: integer
+                    format: int64
+                  airport:
+                    $ref: '#/components/schemas/airport'
+  /navaid:
+    get:
+      summary: Retrieve a list of navaids
+      description: Limited to 100 results
+      parameters:
+      - name: search
+        in: query
+        description: string to search within the database
+        required: false
+        schema:
+          type: string
+      - name: page
+        in: query
+        description: Page number
+        required: false
+        schema:
+          type: string
+      - name: country
+        in: query
+        description: Country ISO code
+        required: false
+        schema:
+          type: string
+      - name: latitude
+        in: query
+        description: if present with longitude, order by nearest objects from this point
+        required: false
+        schema:
+          type: number
+          format: float64
+      - name: navaid_type
+        in: query
+        description: Type of navaid to select
+        required: false
+        schema:
+            type: string
+            enum:
+              - Vor
+              - VorDme
+              - Dme
+              - Adf
+              - VorTac
+              - Tacan
+              - Ndb
+              - NdbDme
+              - Unknown
+      responses:
+        '200':
+          description: A paged array of navaids
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - success
+                      - error
+                  description:
+                    type: string
+                  navaids:
+                    type: array
+                    maxItems: 100
+                    minItems: 0
+                    items:
+                      $ref: '#/components/schemas/navaid'
+  /navaid/{icao_code}:
+    get:
+      summary: Retrieve navaids
+      description: Limited to 100 results
+      parameters:
+      - name: icao_code
+        in: path
+        description: ICAO code of requested navaids
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: |
+            The requested navaids.
+            Several navaids can share the same ICAO code. The result is therefore an array
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - success
+                      - error
+                  description:
+                    type: string
+                  navaids:
+                    type: array
+                    maxItems: 100
+                    minItems: 0
+                    items:
+                      $ref: '#/components/schemas/navaid'
